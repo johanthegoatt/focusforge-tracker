@@ -27,7 +27,8 @@ export function createTimerState(initialMinutes = 25) {
     secondsLeft: minutes * 60,
     phase: "idle",
     mode: "focus",
-    completedFocusIntervals: 0
+    completedFocusIntervals: 0,
+    endsAt: 0
   };
 }
 
@@ -38,28 +39,47 @@ export function setMinutes(state, minutes) {
   state.secondsLeft = next * 60;
   state.phase = "idle";
   state.mode = "focus";
+  state.endsAt = 0;
   return state;
 }
 
-export function startTimer(state) {
+export function startTimer(state, now = Date.now()) {
   if (state.phase === "running") return false;
   if (state.phase === "finished" && state.secondsLeft === 0) {
     state.secondsLeft = state.durationSeconds;
   }
   state.phase = "running";
+  state.endsAt = now + state.secondsLeft * 1000;
   return true;
 }
 
-export function pauseTimer(state) {
+export function pauseTimer(state, now = Date.now()) {
+  if (state.phase !== "running") return false;
+  syncToClock(state, now);
   if (state.phase !== "running") return false;
   state.phase = "paused";
+  state.endsAt = 0;
   return true;
 }
 
 export function resetTimer(state) {
   state.secondsLeft = state.durationSeconds;
   state.phase = "idle";
+  state.endsAt = 0;
   return state;
+}
+
+export function syncToClock(state, now = Date.now()) {
+  if (state.phase !== "running" || !state.endsAt) return "noop";
+  const left = Math.max(0, Math.ceil((state.endsAt - now) / 1000));
+  const changed = left !== state.secondsLeft;
+  state.secondsLeft = left;
+  if (left === 0) {
+    state.phase = "finished";
+    state.endsAt = 0;
+    return "finished";
+  }
+  return changed ? "tick" : "noop";
 }
 
 export function advanceSecond(state) {
@@ -91,6 +111,7 @@ function applyMode(state, mode, minutes) {
   state.durationSeconds = minutes * 60;
   state.secondsLeft = minutes * 60;
   state.phase = "idle";
+  state.endsAt = 0;
 }
 
 export function completeInterval(state, cycleConfigInput = {}) {

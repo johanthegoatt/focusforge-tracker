@@ -1,6 +1,5 @@
 import { recordSession, summarizeSessions } from "./src/stats.js";
 import {
-  advanceSecond,
   completeInterval,
   createTimerState,
   normalizeCycleConfig,
@@ -9,7 +8,8 @@ import {
   progressRatio,
   resetTimer,
   setMinutes,
-  startTimer
+  startTimer,
+  syncToClock
 } from "./src/timerMachine.js";
 import { loadPreferences, loadSessions, savePreferences, saveSessions } from "./src/storage.js";
 
@@ -105,16 +105,19 @@ function stopTickLoop() {
   intervalId = 0;
 }
 
+function tick() {
+  const outcome = syncToClock(timer, Date.now());
+  if (outcome === "noop") return;
+  renderTimer();
+  if (outcome === "finished") {
+    stopTickLoop();
+    statusEl.textContent = "Timer finished. Press Complete Session or Next Interval.";
+  }
+}
+
 function ensureTickLoop() {
   if (intervalId) return;
-  intervalId = window.setInterval(() => {
-    const outcome = advanceSecond(timer);
-    renderTimer();
-    if (outcome === "finished") {
-      stopTickLoop();
-      statusEl.textContent = "Timer finished. Press Complete Session or Next Interval.";
-    }
-  }, 1000);
+  intervalId = window.setInterval(tick, 250);
 }
 
 function handleMinutesChange() {
@@ -127,7 +130,7 @@ function handleMinutesChange() {
 }
 
 function handleStart() {
-  const changed = startTimer(timer);
+  const changed = startTimer(timer, Date.now());
   if (!changed) return;
   ensureTickLoop();
   statusEl.textContent = "Session started.";
@@ -135,9 +138,13 @@ function handleStart() {
 }
 
 function handlePause() {
-  const changed = pauseTimer(timer);
-  if (!changed) return;
+  const changed = pauseTimer(timer, Date.now());
   stopTickLoop();
+  renderTimer();
+  if (!changed) {
+    if (timer.phase === "finished") statusEl.textContent = "Timer finished. Press Complete Session or Next Interval.";
+    return;
+  }
   statusEl.textContent = "Session paused.";
 }
 
@@ -215,6 +222,9 @@ resetBtn.addEventListener("click", handleReset);
 completeBtn.addEventListener("click", completeSession);
 nextBtn.addEventListener("click", handleNextInterval);
 document.addEventListener("keydown", handleKeyShortcuts);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") tick();
+});
 
 syncMinutesInput();
 renderTimer();
