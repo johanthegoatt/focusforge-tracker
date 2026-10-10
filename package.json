@@ -1,6 +1,7 @@
 {
   "name": "focusforge-tracker",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "A focus timer that keeps time when you switch tabs, rings when time is up, and shows where your week went.",
   "private": true,
   "type": "module",
   "scripts": {
