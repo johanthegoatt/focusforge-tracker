@@ -36,3 +36,22 @@ export function savePreferences(preferences, storage = localStorage) {
   storage.setItem(PREF_KEY, JSON.stringify(preferences));
 }
 
+
+const TIMER_KEY = "focusforge:timer:v1";
+
+export function loadTimer(storage = localStorage) {
+  try {
+    const raw = storage.getItem(TIMER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveTimer(snapshot, storage = localStorage) {
+  try {
+    storage.setItem(TIMER_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Private mode or a full disk: the timer still works, it just won't survive a reload.
+  }
+}

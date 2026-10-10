@@ -7,11 +7,13 @@ import {
   pauseTimer,
   progressRatio,
   resetTimer,
+  restoreTimer,
   setMinutes,
+  snapshotTimer,
   startTimer,
   syncToClock
 } from "./src/timerMachine.js";
-import { loadPreferences, loadSessions, savePreferences, saveSessions } from "./src/storage.js";
+import { loadPreferences, loadSessions, loadTimer, savePreferences, saveSessions, saveTimer } from "./src/storage.js";
 
 const minutesInput = document.getElementById("minutes");
 const timerEl = document.getElementById("timer");
@@ -29,7 +31,7 @@ const nextBtn = document.getElementById("next");
 
 const preferences = loadPreferences();
 const sessions = loadSessions();
-const timer = createTimerState(preferences.minutes);
+const timer = restoreTimer(loadTimer(), preferences.minutes);
 const cycleConfig = normalizeCycleConfig({
   focusMinutes: preferences.minutes,
   shortBreakMinutes: 5,
@@ -44,7 +46,12 @@ function toClock(seconds) {
   return `${String(mins).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 
+function persistTimer() {
+  saveTimer(snapshotTimer(timer));
+}
+
 function renderTimer() {
+  persistTimer();
   timerEl.textContent = toClock(timer.secondsLeft);
   modeEl.textContent = `Mode: ${timer.mode} | Completed focus intervals: ${timer.completedFocusIntervals}`;
   const ratio = Math.max(0, Math.min(1, progressRatio(timer)));
@@ -111,8 +118,26 @@ function tick() {
   renderTimer();
   if (outcome === "finished") {
     stopTickLoop();
-    statusEl.textContent = "Timer finished. Press Complete Session or Next Interval.";
+    finishInterval();
   }
+}
+
+// When time runs out the focus block is logged on the spot and the break is
+// lined up, so a session is never lost to a forgotten button press.
+function finishInterval() {
+  const wasFocus = timer.mode === "focus";
+  const minutes = timer.minutes;
+  if (wasFocus) {
+    recordSession(sessions, { minutes, completedAt: new Date(timer.finishedAt || Date.now()).toISOString() });
+    saveSessions(sessions);
+    renderStats();
+    renderHistory();
+  }
+  const transition = completeInterval(timer, cycleConfig);
+  renderTimer();
+  statusEl.textContent = wasFocus
+    ? `Nice, ${minutes} minutes logged. Time for a ${transition.nextMode === "long-break" ? "long" : "short"} break.`
+    : "Break's over. Ready when you are.";
 }
 
 function ensureTickLoop() {
@@ -224,9 +249,15 @@ nextBtn.addEventListener("click", handleNextInterval);
 document.addEventListener("keydown", handleKeyShortcuts);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") tick();
+  else persistTimer();
 });
 
 syncMinutesInput();
-renderTimer();
 renderStats();
 renderHistory();
+if (timer.phase === "finished") {
+  finishInterval();
+} else {
+  renderTimer();
+  if (timer.phase === "running") ensureTickLoop();
+}

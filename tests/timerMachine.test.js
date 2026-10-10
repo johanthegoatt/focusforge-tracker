@@ -12,6 +12,8 @@ import {
   setMinutes,
   pauseTimer,
   startTimer,
+  restoreTimer,
+  snapshotTimer,
   syncToClock
 } from "../src/timerMachine.js";
 
@@ -122,4 +124,47 @@ test("pause after the end time counts as finished, not paused", () => {
   startTimer(timer, 0);
   assert.equal(pauseTimer(timer, 61_000), false);
   assert.equal(timer.phase, "finished");
+});
+
+test("a running timer comes back after a reload and keeps counting", () => {
+  const timer = createTimerState(25);
+  startTimer(timer, 1_000_000);
+  const saved = JSON.parse(JSON.stringify(snapshotTimer(timer)));
+  const back = restoreTimer(saved, 25, 1_000_000 + 60_000);
+  assert.equal(back.phase, "running");
+  assert.equal(back.secondsLeft, 24 * 60);
+  assert.equal(back.endsAt, timer.endsAt);
+});
+
+test("a timer that ran out while the tab was closed comes back finished", () => {
+  const timer = createTimerState(25);
+  startTimer(timer, 0);
+  const back = restoreTimer(snapshotTimer(timer), 25, 26 * 60 * 1000);
+  assert.equal(back.phase, "finished");
+  assert.equal(back.secondsLeft, 0);
+  assert.equal(back.mode, "focus");
+  // Logged at the real end time, not when the tab was reopened.
+  assert.equal(back.finishedAt, 25 * 60 * 1000);
+});
+
+test("a paused break keeps its mode, time left and count", () => {
+  const back = restoreTimer(
+    { mode: "short-break", phase: "paused", minutes: 5, secondsLeft: 90, endsAt: 0, completedFocusIntervals: 3 },
+    25
+  );
+  assert.equal(back.mode, "short-break");
+  assert.equal(back.durationSeconds, 300);
+  assert.equal(back.secondsLeft, 90);
+  assert.equal(back.completedFocusIntervals, 3);
+});
+
+test("junk in storage gives a fresh timer", () => {
+  for (const junk of [null, "x", { mode: "nap", phase: "idle" }, { mode: "focus", phase: "melting" }]) {
+    const back = restoreTimer(junk, 30);
+    assert.equal(back.phase, "idle");
+    assert.equal(back.secondsLeft, 30 * 60);
+  }
+  const noEnd = restoreTimer({ mode: "focus", phase: "running", minutes: 25, secondsLeft: 100 }, 25);
+  assert.equal(noEnd.phase, "paused");
+  assert.equal(noEnd.secondsLeft, 100);
 });

@@ -76,6 +76,7 @@ export function syncToClock(state, now = Date.now()) {
   state.secondsLeft = left;
   if (left === 0) {
     state.phase = "finished";
+    state.finishedAt = state.endsAt;
     state.endsAt = 0;
     return "finished";
   }
@@ -144,4 +145,55 @@ export function completeInterval(state, cycleConfigInput = {}) {
     reason: "break-complete",
     nextMode: "focus"
   };
+}
+
+const MODES = new Set(["focus", "short-break", "long-break"]);
+const PHASES = new Set(["idle", "running", "paused", "finished"]);
+
+// What gets written to storage so a reload, a crash or a tab the browser
+// discarded in the background picks up where it left off.
+export function snapshotTimer(state) {
+  return {
+    mode: state.mode,
+    phase: state.phase,
+    minutes: state.minutes,
+    secondsLeft: state.secondsLeft,
+    endsAt: state.endsAt,
+    finishedAt: state.finishedAt || 0,
+    completedFocusIntervals: state.completedFocusIntervals
+  };
+}
+
+// Rebuild a timer from a snapshot. A running timer keeps counting against its
+// end time, so time spent with the tab closed still counts. Anything that does
+// not look like a snapshot gives a fresh timer.
+export function restoreTimer(saved, fallbackMinutes = 25, now = Date.now()) {
+  const state = createTimerState(fallbackMinutes);
+  if (!saved || typeof saved !== "object") return state;
+  if (!MODES.has(saved.mode) || !PHASES.has(saved.phase)) return state;
+
+  const minutes = normalizeMinutes(saved.minutes);
+  const duration = minutes * 60;
+  const left = Math.round(Number(saved.secondsLeft));
+  state.mode = saved.mode;
+  state.minutes = minutes;
+  state.durationSeconds = duration;
+  state.secondsLeft = Number.isFinite(left) ? Math.max(0, Math.min(duration, left)) : duration;
+  state.completedFocusIntervals = Math.max(0, Math.floor(Number(saved.completedFocusIntervals) || 0));
+  state.phase = saved.phase;
+
+  if (saved.phase === "running") {
+    const endsAt = Number(saved.endsAt);
+    if (!Number.isFinite(endsAt) || endsAt <= 0) {
+      state.phase = "paused";
+      return state;
+    }
+    state.endsAt = endsAt;
+    syncToClock(state, now);
+  }
+  if (state.phase === "finished") {
+    state.secondsLeft = 0;
+    if (!state.finishedAt) state.finishedAt = Number(saved.finishedAt) || now;
+  }
+  return state;
 }
