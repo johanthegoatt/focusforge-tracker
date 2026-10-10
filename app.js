@@ -1,4 +1,4 @@
-import { recordSession, summarizeSessions } from "./src/stats.js";
+import { cleanLabel, minutesByLabel, recentLabels, recordSession, summarizeSessions } from "./src/stats.js";
 import {
   completeInterval,
   createTimerState,
@@ -31,6 +31,9 @@ const resetBtn = document.getElementById("reset");
 const completeBtn = document.getElementById("complete");
 const nextBtn = document.getElementById("next");
 const notesBox = document.getElementById("notes");
+const labelInput = document.getElementById("label");
+const labelList = document.getElementById("label-list");
+const whereEl = document.getElementById("where");
 
 const preferences = loadPreferences();
 const sessions = loadSessions();
@@ -72,6 +75,7 @@ function renderStats() {
     `Average session minutes: ${summary.averageSessionMinutes}`,
     `Current streak days: ${summary.streakDays}`,
     `Best streak days: ${summary.bestStreakDays}`,
+    `Minutes today: ${summary.todayMinutes}`,
     `Minutes in last 7 days: ${summary.last7DaysMinutes}`
   ];
 
@@ -79,6 +83,39 @@ function renderStats() {
     const li = document.createElement("li");
     li.textContent = row;
     statsEl.append(li);
+  }
+}
+
+function renderWhere() {
+  whereEl.innerHTML = "";
+  const rows = minutesByLabel(sessions, new Date());
+  if (rows.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "Name a session and it shows up here.";
+    whereEl.append(li);
+    return;
+  }
+  for (const row of rows) {
+    const li = document.createElement("li");
+    li.className = "where-row";
+    const name = document.createElement("span");
+    name.textContent = row.label;
+    const mins = document.createElement("span");
+    mins.textContent = `${row.minutes} min`;
+    const bar = document.createElement("span");
+    bar.className = "where-bar";
+    bar.style.setProperty("--share", row.share.toFixed(3));
+    li.append(name, mins, bar);
+    whereEl.append(li);
+  }
+}
+
+function renderLabelChoices() {
+  labelList.innerHTML = "";
+  for (const label of recentLabels(sessions)) {
+    const option = document.createElement("option");
+    option.value = label;
+    labelList.append(option);
   }
 }
 
@@ -95,9 +132,22 @@ function renderHistory() {
   for (const session of recent) {
     const item = document.createElement("li");
     const date = new Date(session.completedAt).toLocaleString();
-    item.textContent = `${session.minutes}m completed at ${date}`;
+    item.textContent = `${session.label ? `${session.label}: ` : ""}${session.minutes}m completed at ${date}`;
     historyEl.append(item);
   }
+}
+
+function renderLogs() {
+  renderStats();
+  renderWhere();
+  renderHistory();
+  renderLabelChoices();
+}
+
+function handleLabelChange() {
+  preferences.label = cleanLabel(labelInput.value);
+  labelInput.value = preferences.label;
+  savePreferences(preferences);
 }
 
 function saveMinutesPreference(value) {
@@ -132,10 +182,13 @@ function finishInterval({ quiet = false } = {}) {
   const wasFocus = timer.mode === "focus";
   const minutes = timer.minutes;
   if (wasFocus) {
-    recordSession(sessions, { minutes, completedAt: new Date(timer.finishedAt || Date.now()).toISOString() });
+    recordSession(sessions, {
+      minutes,
+      label: preferences.label,
+      completedAt: new Date(timer.finishedAt || Date.now()).toISOString()
+    });
     saveSessions(sessions);
-    renderStats();
-    renderHistory();
+    renderLogs();
   }
   const transition = completeInterval(timer, cycleConfig);
   renderTimer();
@@ -199,11 +252,11 @@ function completeSession() {
   const completedMinutes = timer.minutes;
   recordSession(sessions, {
     minutes: completedMinutes,
+    label: preferences.label,
     completedAt: new Date().toISOString()
   });
   saveSessions(sessions);
-  renderStats();
-  renderHistory();
+  renderLogs();
   handleReset();
   statusEl.textContent = `Recorded ${completedMinutes} minutes.`;
 }
@@ -275,6 +328,7 @@ function syncNotesBox() {
 
 minutesInput.addEventListener("change", handleMinutesChange);
 notesBox.addEventListener("change", handleNotesToggle);
+labelInput.addEventListener("change", handleLabelChange);
 startBtn.addEventListener("click", handleStart);
 pauseBtn.addEventListener("click", handlePause);
 resetBtn.addEventListener("click", handleReset);
@@ -288,8 +342,8 @@ document.addEventListener("visibilitychange", () => {
 
 syncMinutesInput();
 syncNotesBox();
-renderStats();
-renderHistory();
+labelInput.value = preferences.label;
+renderLogs();
 if (timer.phase === "finished") {
   finishInterval({ quiet: true });
 } else {

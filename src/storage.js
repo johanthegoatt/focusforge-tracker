@@ -18,7 +18,7 @@ export function saveSessions(log, storage = localStorage) {
 }
 
 export function loadPreferences(storage = localStorage) {
-  const fallback = { minutes: 25, notes: false };
+  const fallback = { minutes: 25, notes: false, label: "" };
   try {
     const raw = storage.getItem(PREF_KEY);
     if (!raw) return fallback;
@@ -26,7 +26,8 @@ export function loadPreferences(storage = localStorage) {
     const minutes = Number(parsed.minutes);
     return {
       minutes: Number.isFinite(minutes) ? minutes : fallback.minutes,
-      notes: parsed.notes === true
+      notes: parsed.notes === true,
+      label: typeof parsed.label === "string" ? parsed.label.slice(0, 40) : ""
     };
   } catch {
     return fallback;
