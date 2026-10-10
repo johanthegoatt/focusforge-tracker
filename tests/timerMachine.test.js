@@ -14,7 +14,8 @@ import {
   startTimer,
   restoreTimer,
   snapshotTimer,
-  syncToClock
+  syncToClock,
+  tabTitle
 } from "../src/timerMachine.js";
 
 test("normalizeMinutes clamps invalid values", () => {
@@ -167,4 +168,20 @@ test("junk in storage gives a fresh timer", () => {
   const noEnd = restoreTimer({ mode: "focus", phase: "running", minutes: 25, secondsLeft: 100 }, 25);
   assert.equal(noEnd.phase, "paused");
   assert.equal(noEnd.secondsLeft, 100);
+});
+
+test("the tab title shows the time left while the clock runs", () => {
+  const timer = createTimerState(25);
+  assert.equal(tabTitle(timer), "FocusForge");
+  startTimer(timer, 0);
+  syncToClock(timer, 61_000);
+  assert.equal(tabTitle(timer), "23:59 Focus | FocusForge");
+  pauseTimer(timer, 61_000);
+  assert.equal(tabTitle(timer), "Paused 23:59 | FocusForge");
+  startTimer(timer, 0);
+  syncToClock(timer, 25 * 60_000);
+  assert.equal(tabTitle(timer), "Time's up! | FocusForge");
+  completeInterval(timer);
+  startTimer(timer, 0);
+  assert.equal(tabTitle(timer), "05:00 Break | FocusForge");
 });

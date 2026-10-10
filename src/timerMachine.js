@@ -197,3 +197,20 @@ export function restoreTimer(saved, fallbackMinutes = 25, now = Date.now()) {
   }
   return state;
 }
+
+const MODE_NAMES = { focus: "Focus", "short-break": "Break", "long-break": "Long break" };
+
+export function clock(seconds) {
+  const safe = Math.max(0, Math.round(seconds));
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+// The tab title is the one thing you can see while working in another tab,
+// so it carries the time left whenever the clock is going.
+export function tabTitle(state, appName = "FocusForge") {
+  const name = MODE_NAMES[state.mode] || "Focus";
+  if (state.phase === "running") return `${clock(state.secondsLeft)} ${name} | ${appName}`;
+  if (state.phase === "paused") return `Paused ${clock(state.secondsLeft)} | ${appName}`;
+  if (state.phase === "finished") return `Time's up! | ${appName}`;
+  return appName;
+}

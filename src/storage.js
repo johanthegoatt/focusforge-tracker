@@ -18,14 +18,15 @@ export function saveSessions(log, storage = localStorage) {
 }
 
 export function loadPreferences(storage = localStorage) {
-  const fallback = { minutes: 25 };
+  const fallback = { minutes: 25, notes: false };
   try {
     const raw = storage.getItem(PREF_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     const minutes = Number(parsed.minutes);
     return {
-      minutes: Number.isFinite(minutes) ? minutes : fallback.minutes
+      minutes: Number.isFinite(minutes) ? minutes : fallback.minutes,
+      notes: parsed.notes === true
     };
   } catch {
     return fallback;

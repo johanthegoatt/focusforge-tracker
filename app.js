@@ -11,8 +11,10 @@ import {
   setMinutes,
   snapshotTimer,
   startTimer,
-  syncToClock
+  syncToClock,
+  tabTitle
 } from "./src/timerMachine.js";
+import { askForNotes, chime, notesAllowed, notesSupported, showNote, unlockSound } from "./src/alerts.js";
 import { loadPreferences, loadSessions, loadTimer, savePreferences, saveSessions, saveTimer } from "./src/storage.js";
 
 const minutesInput = document.getElementById("minutes");
@@ -28,6 +30,7 @@ const pauseBtn = document.getElementById("pause");
 const resetBtn = document.getElementById("reset");
 const completeBtn = document.getElementById("complete");
 const nextBtn = document.getElementById("next");
+const notesBox = document.getElementById("notes");
 
 const preferences = loadPreferences();
 const sessions = loadSessions();
@@ -53,6 +56,7 @@ function persistTimer() {
 function renderTimer() {
   persistTimer();
   timerEl.textContent = toClock(timer.secondsLeft);
+  document.title = tabTitle(timer);
   modeEl.textContent = `Mode: ${timer.mode} | Completed focus intervals: ${timer.completedFocusIntervals}`;
   const ratio = Math.max(0, Math.min(1, progressRatio(timer)));
   progressBarEl.style.width = `${(ratio * 100).toFixed(2)}%`;
@@ -124,7 +128,7 @@ function tick() {
 
 // When time runs out the focus block is logged on the spot and the break is
 // lined up, so a session is never lost to a forgotten button press.
-function finishInterval() {
+function finishInterval({ quiet = false } = {}) {
   const wasFocus = timer.mode === "focus";
   const minutes = timer.minutes;
   if (wasFocus) {
@@ -135,9 +139,14 @@ function finishInterval() {
   }
   const transition = completeInterval(timer, cycleConfig);
   renderTimer();
-  statusEl.textContent = wasFocus
+  const message = wasFocus
     ? `Nice, ${minutes} minutes logged. Time for a ${transition.nextMode === "long-break" ? "long" : "short"} break.`
     : "Break's over. Ready when you are.";
+  statusEl.textContent = message;
+  if (!quiet) {
+    chime();
+    if (preferences.notes) showNote(wasFocus ? "Focus done" : "Break's over", message);
+  }
 }
 
 function ensureTickLoop() {
@@ -155,6 +164,7 @@ function handleMinutesChange() {
 }
 
 function handleStart() {
+  unlockSound();
   const changed = startTimer(timer, Date.now());
   if (!changed) return;
   ensureTickLoop();
@@ -240,7 +250,31 @@ function handleKeyShortcuts(event) {
   }
 }
 
+async function handleNotesToggle() {
+  if (!notesBox.checked) {
+    preferences.notes = false;
+    savePreferences(preferences);
+    return;
+  }
+  const answer = await askForNotes();
+  preferences.notes = answer === "granted";
+  notesBox.checked = preferences.notes;
+  savePreferences(preferences);
+  if (answer === "denied") {
+    statusEl.textContent = "Notes are blocked for this site. You can allow them from the lock icon next to the address.";
+  }
+}
+
+function syncNotesBox() {
+  if (!notesSupported()) {
+    notesBox.closest("label").hidden = true;
+    return;
+  }
+  notesBox.checked = Boolean(preferences.notes) && notesAllowed();
+}
+
 minutesInput.addEventListener("change", handleMinutesChange);
+notesBox.addEventListener("change", handleNotesToggle);
 startBtn.addEventListener("click", handleStart);
 pauseBtn.addEventListener("click", handlePause);
 resetBtn.addEventListener("click", handleReset);
@@ -253,10 +287,11 @@ document.addEventListener("visibilitychange", () => {
 });
 
 syncMinutesInput();
+syncNotesBox();
 renderStats();
 renderHistory();
 if (timer.phase === "finished") {
-  finishInterval();
+  finishInterval({ quiet: true });
 } else {
   renderTimer();
   if (timer.phase === "running") ensureTickLoop();
