@@ -5,6 +5,7 @@ import {
   advanceSecond,
   completeInterval,
   createTimerState,
+  elapsedMinutes,
   normalizeCycleConfig,
   normalizeMinutes,
   progressRatio,
@@ -184,4 +185,13 @@ test("the tab title shows the time left while the clock runs", () => {
   completeInterval(timer);
   startTimer(timer, 0);
   assert.equal(tabTitle(timer), "05:00 Break | FocusForge");
+});
+
+test("stopping early counts the minutes actually spent", () => {
+  const timer = createTimerState(25);
+  startTimer(timer, 0);
+  syncToClock(timer, 10 * 60_000 + 20_000);
+  assert.equal(elapsedMinutes(timer), 10);
+  syncToClock(timer, 10 * 60_000 + 40_000);
+  assert.equal(elapsedMinutes(timer), 11);
 });

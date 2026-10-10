@@ -3,50 +3,107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FocusForge Tracker</title>
-  <meta name="description" content="Pomodoro tracker with local analytics.">
+  <title>FocusForge</title>
+  <meta name="description" content="A focus timer that keeps going when you switch tabs, tells you when time's up, and shows where your week went.">
+  <meta name="theme-color" content="#fbf4ea">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app">
-    <section class="panel">
-      <h1>FocusForge Tracker</h1>
-      <p>Run focused sessions and track your consistency locally.</p>
+  <a class="skip" href="#timer-card">Skip to the timer</a>
+  <header class="top">
+    <p class="brand"><span class="brand-dot" aria-hidden="true"></span>FocusForge</p>
+    <p class="tagline">Work in short blocks, rest in between, and see where your time went.</p>
+  </header>
 
-      <div class="timer-wrap">
-        <label class="label" for="minutes">Session Minutes</label>
-        <input id="minutes" type="number" min="1" max="90" value="25">
-        <label class="label" for="label">What are you working on?</label>
-        <input id="label" type="text" maxlength="40" list="label-list" placeholder="e.g. Thesis, Email, Math homework" autocomplete="off">
-        <datalist id="label-list"></datalist>
-        <p id="mode" class="mode">Mode: focus</p>
-        <p id="timer" class="timer">25:00</p>
-        <div class="progress-track" aria-hidden="true">
-          <div id="progress-bar" class="progress-bar"></div>
+  <main class="app">
+    <section class="card timer-card" id="timer-card" aria-labelledby="mode">
+      <ol class="cycle" aria-label="Where you are in the cycle">
+        <li data-step="focus">Focus</li>
+        <li data-step="short-break">Short break</li>
+        <li data-step="long-break">Long break</li>
+      </ol>
+
+      <div class="ring-wrap">
+        <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+          <circle class="ring-track" cx="110" cy="110" r="96"/>
+          <circle class="ring-fill" id="ring-fill" cx="110" cy="110" r="96" pathLength="100"/>
+        </svg>
+        <div class="ring-text">
+          <p id="mode" class="mode">Focus</p>
+          <p id="timer" class="timer" role="timer" aria-live="off">25:00</p>
+          <p id="round" class="round">Round 1 of 4</p>
         </div>
       </div>
 
-      <div class="actions">
-        <button id="start" type="button">Start</button>
-        <button id="pause" type="button">Pause</button>
-        <button id="reset" type="button">Reset</button>
-        <button id="complete" type="button">Complete Session</button>
-        <button id="next" type="button">Next Interval</button>
+      <div class="field">
+        <label for="label">What are you working on?</label>
+        <input id="label" type="text" maxlength="40" list="label-list" placeholder="e.g. Thesis, Email, Math homework" autocomplete="off">
+        <datalist id="label-list"></datalist>
       </div>
-      <label class="check"><input id="notes" type="checkbox"> Pop up a note when time's up</label>
-      <p id="status" class="status" aria-live="polite"></p>
-      <p class="hint">Shortcuts: `Space` start/pause, `R` reset, `Enter` complete, `N` next interval.</p>
+
+      <div class="actions">
+        <button id="start" type="button" class="btn primary">Start</button>
+        <button id="finish" type="button" class="btn">Finish now</button>
+        <button id="next" type="button" class="btn">Skip</button>
+        <button id="reset" type="button" class="btn ghost">Reset</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <details class="settings">
+        <summary>Settings</summary>
+        <div class="field inline">
+          <label for="minutes">Focus length (minutes)</label>
+          <input id="minutes" type="number" min="1" max="90" value="25" inputmode="numeric">
+        </div>
+        <div class="presets" role="group" aria-label="Quick focus lengths">
+          <button type="button" class="chip" data-minutes="15">15</button>
+          <button type="button" class="chip" data-minutes="25">25</button>
+          <button type="button" class="chip" data-minutes="45">45</button>
+          <button type="button" class="chip" data-minutes="50">50</button>
+        </div>
+        <label class="check"><input id="notes" type="checkbox"> Pop up a note when time's up</label>
+        <p class="hint">Keys: <kbd>Space</kbd> start or pause, <kbd>F</kbd> finish now, <kbd>N</kbd> skip, <kbd>R</kbd> reset.</p>
+      </details>
     </section>
 
-    <section class="panel">
-      <h2>Analytics</h2>
-      <ul id="stats" class="stats"></ul>
-      <h3>Where the time went (last 7 days)</h3>
-      <ul id="where" class="stats"></ul>
-      <h3>Recent Sessions</h3>
-      <ul id="history" class="stats"></ul>
+    <section class="card" aria-labelledby="progress-title">
+      <h2 id="progress-title">Your progress</h2>
+      <ul id="stats" class="tiles"></ul>
+
+      <h3>Where the time went <span class="muted">last 7 days</span></h3>
+      <ul id="where" class="where"></ul>
+
+      <h3>Recent sessions</h3>
+      <ul id="history" class="history"></ul>
     </section>
   </main>
+
+  <footer class="foot">Made by Johan · <a href="https://github.com/johanthegoatt/focusforge-tracker">Source on GitHub</a></footer>
+
+  <div class="ember-dock" id="ember-dock">
+    <div class="bubble" id="ember-bubble" role="status" aria-live="polite"></div>
+    <button type="button" class="ember" id="ember" data-mood="sleepy" aria-label="Ember the spark. Tap for a tip.">
+      <svg viewBox="0 0 120 130" aria-hidden="true">
+        <ellipse cx="60" cy="124" rx="30" ry="4.5" class="e-shadow"/>
+        <g class="e-body">
+          <path class="e-flame" d="M60 6c6 18 22 28 30 44 9 17 9 38-2 52-7 10-17 15-28 15s-21-5-28-15c-11-14-11-35-2-52 4-8 10-14 14-22 2 8 6 12 10 14 2-12 2-24 6-36z"/>
+          <path class="e-core" d="M60 52c4 10 14 16 16 28 3 15-6 27-16 27s-19-12-16-27c2-12 12-18 16-28z"/>
+          <g class="e-eyes">
+            <g><ellipse cx="48" cy="80" rx="6" ry="7.5" class="e-white"/><circle cx="48" cy="81" r="3.6" class="e-pupil"/></g>
+            <g><ellipse cx="72" cy="80" rx="6" ry="7.5" class="e-white"/><circle cx="72" cy="81" r="3.6" class="e-pupil"/></g>
+            <path d="M41 80h14M65 80h14" class="e-lids"/>
+            <path d="M41 81q7-6 14 0M65 81q7-6 14 0" class="e-happy"/>
+          </g>
+          <ellipse cx="40" cy="92" rx="4.5" ry="2.6" class="e-blush"/>
+          <ellipse cx="80" cy="92" rx="4.5" ry="2.6" class="e-blush"/>
+          <path d="M53 95q7 6 14 0" class="e-mouth"/>
+          <path d="M54 97h12" class="e-mouth-flat"/>
+          <ellipse cx="60" cy="97" rx="3.6" ry="4.4" class="e-mouth-o"/>
+        </g>
+      </svg>
+    </button>
+    <button type="button" class="ember-hide" id="ember-hide" aria-label="Hide Ember">×</button>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

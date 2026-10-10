@@ -214,3 +214,8 @@ export function tabTitle(state, appName = "FocusForge") {
   if (state.phase === "finished") return `Time's up! | ${appName}`;
   return appName;
 }
+
+// Minutes actually spent in this interval, for stopping a focus block early.
+export function elapsedMinutes(state) {
+  return Math.max(0, Math.round((state.durationSeconds - state.secondsLeft) / 60));
+}
